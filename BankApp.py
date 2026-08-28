@@ -206,7 +206,7 @@ class BankApp:
                     (updated_sender_balance, sender),
                 )
                 current_receiver_balance = self.get_balance(receiver)
-                updated_receiver_balance = current_receiver_balance + amount
+                updated_receiver_balance = current_receiver_balance + int(amount)
                 self.cursor.execute(
                     "UPDATE customers SET balance=? WHERE username=?",
                     (updated_receiver_balance, receiver),

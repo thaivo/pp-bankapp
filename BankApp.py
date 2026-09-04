@@ -7,7 +7,15 @@ def encrypt_password(plain_password):
     password_bytes = plain_password.encode("utf-8")
     return hashlib.sha256(password_bytes).hexdigest()
 
-
+def validate_input(input_str):
+    try:
+        value = int(input_str)
+        if value < 0:
+            raise ValueError("Input must be a non-negative integer.")
+        return value
+    except ValueError:
+        print("Invalid input. Please enter a valid non-negative integer.")
+        return None
 class BankApp:
     def __init__(self, db_name):
         self.connection = sqlite3.connect(db_name)
@@ -219,6 +227,31 @@ class BankApp:
             print("transfer -")
             # self.connection.close()
 
+    def update_customer_info(self, username, new_username=None, new_password=None):
+        try:
+            print("update_customer_info +")
+            # self.cursor = self.connection.cursor()
+            cur_username = username
+            if new_username:
+                self.cursor.execute(
+                    "UPDATE customers SET username=? WHERE username=?",
+                    (new_username, username),
+                )
+                cur_username = new_username
+
+            if new_password:
+                hashed_pw = encrypt_password(new_password)
+                self.cursor.execute(
+                    "UPDATE customers SET password=? WHERE username=?",
+                    (hashed_pw, cur_username),
+                )
+            self.connection.commit()
+        except sqlite3.Error as e:
+            print(f"A database error occurred: {e}")
+        finally:
+            print("update_customer_info -")
+            # self.connection.close()
+
 
 def main():
     bank_app = BankApp("bankapp.db")
@@ -227,6 +260,7 @@ def main():
         print("Login: 2")
         print("Exit: 3")
         choice = input("Please input number:")
+        validate_input(choice)
         if choice == "3":
             break
         elif choice == "2":
@@ -246,8 +280,10 @@ def main():
                 print("Deposit: 2")
                 print("Withdraw: 3")
                 print("Transfer: 4")
-                print("Exit: 5")
+                print("Update your info: 5")
+                print("Exit: 6")
                 choice = input("Please input number:")
+                validate_input(choice)
                 match choice:
                     case "1":
                         print(f"balance: {bank_app.get_balance(username)}")
@@ -264,6 +300,16 @@ def main():
                         receiver = input("receiver's username:")
                         bank_app.transfer(username, receiver, transfer_amount)
                     case "5":
+                        new_username = input("New username (leave blank to keep current):")
+                        new_password = input("New password (leave blank to keep current):")
+                        bank_app.update_customer_info(
+                            username,
+                            new_username if new_username else None,
+                            new_password if new_password else None,
+                        )
+                        if new_username:
+                            username = new_username
+                    case "6":
                         break
                     case _:
                         print(

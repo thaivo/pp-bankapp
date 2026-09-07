@@ -1,20 +1,105 @@
 #!/usr/bin/env python3
+import re
+from dataclasses import dataclass
 import sqlite3
 import hashlib
-
+from functools import singledispatch
+from decimal import Decimal
 
 def encrypt_password(plain_password):
     password_bytes = plain_password.encode("utf-8")
     return hashlib.sha256(password_bytes).hexdigest()
 
-def validate_input(input_str):
+@dataclass
+class Username:
+    value: str
+
+@dataclass
+class Password:
+    value: str
+
+@singledispatch
+def validate_input(arg, verbose=False) -> bool:
+    if verbose:
+        print(f"Unsupported type: {type(arg)}")
+    # raise NotImplementedError("Unsupported type")
+    print("Unsupported type.")
+    return False
+
+@validate_input.register(Username)
+def _(arg: Username, verbose=False) -> bool:
+    if verbose:
+        print(f"Validating username input: {arg.value}")
+    if not re.match(r"^[a-zA-Z0-9_]{3,20}$", arg.value):
+        print("Invalid username: Must be 3-20 characters long and contain only letters, numbers, and underscores.")
+        return False
+    return True
+
+
+@validate_input.register(Password)
+def _(arg: Password, verbose=False) -> bool:
+    if verbose:
+        print(f"Validating password input: {arg.value}")
+    # (?=.*[a-z]) — Contains lowercase. Looks ahead from the start to find any number of characters (.*) followed by at least one lowercase letter.
+    # (?=.*[A-Z]) — Contains uppercase. Looks ahead to find any characters followed by at least one uppercase letter.
+    # (?=.*\d) — Contains a digit. Looks ahead to find any characters followed by at least one numeric digit (0-9).
+    # (?=.*[@$!%*?&]) — Contains a special character. Looks ahead to find any characters followed by at least one special character from this allowed set: @, $, !, %, *, ?, or &.
+    # [A-Za-z\d@$!%*?&] — Allowed character dictionary. Once all the lookahead checks pass, this defines the only characters permitted in the password (letters, digits, and your specific special characters). If a user types a space, hashtag #, or period ., the password will fail.
+    # {8,} — Minimum length. Quantifies the character dictionary to ensure the password is at least 8 characters long (with no upper bound limit).
+    #
+    # When a password like SecureP@ss123 is checked, the engine acts like a checklist:
+    # At the start (^), is there a lowercase letter ahead? Yes (e). Reset pointer to start.
+    # Is there an uppercase letter ahead? Yes (S). Reset pointer to start.
+    # Is there a number ahead? Yes (1). Reset pointer to start.
+    # Is there a special character ahead? Yes (@). Reset pointer to start.
+    # Are all characters from our allowed list, and are there at least 8 of them? Yes (13 characters).
+    # Reach the end of the line ($) \(\rightarrow \) Valid!
+    pattern = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
+    return bool(re.match(pattern, arg.value))
+
+@validate_input.register(int)
+def _(arg: int, verbose=False) -> bool:
+    if verbose:
+        print(f"Validating integer input: {arg}")
+    if arg < 0:
+        print("Input must be a non-negative integer.")
+        return False
+    return True
+
+@validate_input.register(Decimal)
+def _(arg: Decimal, verbose=False) -> bool:
+    if verbose:
+        print(f"Validating decimal input: {arg}")
+    if arg < 0:
+        print("Invalid input: Input must be a non-negative decimal.")
+        return False
+    return True
+
+def get_valid_input(target_type: type, prompt: str, err_msg: str):
+    raw_text = input(prompt)
+    # TODO: Add a feature for enable DEBUG mode for debugging purpose, and print the debug info only when DEBUG mode is enabled
+    # maybe we can use a global variable DEBUG_MODE to control the debug output, 
+    # and it can be read from config file or environment variable, and can be set by command line argument.
+    # print(f"target_type: {target_type}, raw_text: {raw_text}")
+
+    # Define a set of types that are supported for validation
+    supported_types = {Username, Password, int, Decimal}
+
+    if target_type not in supported_types:
+        print(f"Unsupported type for validation: {target_type}")
+        return None
+
     try:
-        value = int(input_str)
-        if value < 0:
-            raise ValueError("Input must be a non-negative integer.")
-        return value
-    except ValueError:
-        print("Invalid input. Please enter a valid non-negative integer.")
+        # Attempt to create an instance of the target type
+        value = target_type(raw_text)
+        # print(f"Debug after an instance creation, value is: {value}")
+        if validate_input(value):
+            return value.value if isinstance(value, (Username, Password)) else value
+        else:
+            print(err_msg)
+            return None
+    except Exception as e:
+        print(f"Error: {e}")
         return None
 class BankApp:
     def __init__(self, db_name):
@@ -259,13 +344,12 @@ def main():
         print("Registration: 1")
         print("Login: 2")
         print("Exit: 3")
-        choice = input("Please input number:")
-        validate_input(choice)
-        if choice == "3":
+        choice = get_valid_input(int, "Please input number:", "Invalid input. Please try again.")
+        if choice == 3:
             break
-        elif choice == "2":
-            username = input("username:")
-            password = input("password:")
+        elif choice == 2:
+            username = get_valid_input(Username, "username:", "Invalid username.")
+            password = get_valid_input(Password, "password:", "Invalid password.")
             if bank_app.check_existing_cust(username) is False:
                 print(
                     f"user {username} does not exist. Please register or try with an existing one"
@@ -282,26 +366,25 @@ def main():
                 print("Transfer: 4")
                 print("Update your info: 5")
                 print("Exit: 6")
-                choice = input("Please input number:")
-                validate_input(choice)
+                choice = get_valid_input(int, "Please input number:", "Invalid input. Please try again.")
                 match choice:
-                    case "1":
+                    case 1:
                         print(f"balance: {bank_app.get_balance(username)}")
-                    case "2":
-                        deposit_amount = input("Deposit amount:")
+                    case 2:
+                        deposit_amount = get_valid_input(Decimal, "Deposit amount:", "Invalid deposit amount.")
                         bank_app.deposit(username, deposit_amount)
                         print(f"balance: {bank_app.get_balance(username)}")
-                    case "3":
-                        withdraw_amount = input("Withdrawal amount:")
+                    case 3:
+                        withdraw_amount = get_valid_input(Decimal, "Withdrawal amount:", "Invalid withdrawal amount.")
                         bank_app.withdraw(username, withdraw_amount)
                         print(f"balance: {bank_app.get_balance(username)}")
-                    case "4":
-                        transfer_amount = input("Transfer amount:")
-                        receiver = input("receiver's username:")
+                    case 4:
+                        transfer_amount = get_valid_input(Decimal, "Transfer amount:", "Invalid transfer amount.")
+                        receiver = get_valid_input(Username, "receiver's username:", "Invalid username.")
                         bank_app.transfer(username, receiver, transfer_amount)
-                    case "5":
-                        new_username = input("New username (leave blank to keep current):")
-                        new_password = input("New password (leave blank to keep current):")
+                    case 5:
+                        new_username = get_valid_input(Username, "New username (leave blank to keep current):", "Invalid username.")
+                        new_password = get_valid_input(Password, "New password (leave blank to keep current):", "Invalid password.")
                         bank_app.update_customer_info(
                             username,
                             new_username if new_username else None,
@@ -309,15 +392,15 @@ def main():
                         )
                         if new_username:
                             username = new_username
-                    case "6":
+                    case 6:
                         break
                     case _:
                         print(
-                            "Invalid code. Please input input the mentioned code above"
+                            "Invalid code. Please input the mentioned code above"
                         )
-        elif choice == "1":
-            username = input("username:")
-            password = input("password:")
+        elif choice == 1:
+            username = get_valid_input(Username, "username:", "Invalid username.")
+            password = get_valid_input(Password, "password:", "Invalid password.")
             if bank_app.check_existing_cust(username) is True:
                 print(f"user {username} already exists. Please try with another one")
                 continue

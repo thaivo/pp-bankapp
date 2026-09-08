@@ -116,13 +116,44 @@ class BankApp:
             # create cursor object to interact with db
             # self.cursor = self.connection.cursor()
 
-            # create a table
+            # create customers table
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
                 password TEXT NOT NULL,
                 balance INTEGER
+                )
+            """)
+
+            # create transactions_types table
+            self.cursor.execute("""
+                CREATE TABLE IF NOT EXISTS transactions_types (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL
+                )
+            """)
+
+            # insert default transaction types if they don't exist
+            self.cursor.execute("""
+                INSERT OR IGNORE INTO transactions_types (id, type) VALUES
+                (1, 'deposit'),
+                (2, 'withdrawal'),
+                (3, 'transfer')
+            """)
+
+            # create transactions table
+            self.cursor.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sender_id INTEGER NOT NULL,
+                receiver_id INTEGER,
+                amount INTEGER,
+                type_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (sender_id) REFERENCES customers (id),
+                FOREIGN KEY (receiver_id) REFERENCES customers (id),
+                FOREIGN KEY (type_id) REFERENCES transactions_types (id)
                 )
             """)
             self.connection.commit()

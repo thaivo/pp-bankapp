@@ -122,7 +122,7 @@ class BankApp:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL,
                 password TEXT NOT NULL,
-                balance INTEGER
+                balance INTEGER DEFAULT 0
                 )
             """)
 
@@ -263,7 +263,7 @@ class BankApp:
                 "SELECT balance FROM customers WHERE username=?", (username,)
             )
             print("get_balance -")
-            return int(res.fetchone()[0])
+            return Decimal(res.fetchone()[0])
         except sqlite3.Error as e:
             print(f"A database error occurred: {e}")
             return 0
@@ -275,10 +275,10 @@ class BankApp:
         try:
             print("deposit +")
             # self.cursor = self.connection.cursor()
-            updated_balance = self.get_balance(username) + int(amount)
+            updated_balance = self.get_balance(username) + Decimal(amount)
             self.cursor.execute(
                 "UPDATE customers SET balance=? WHERE username=?",
-                (updated_balance, username),
+                (str(updated_balance), username),
             )
             self.connection.commit()
         except sqlite3.Error as e:
@@ -291,17 +291,17 @@ class BankApp:
         try:
             print("withdraw +")
             current_balance = self.get_balance(username)
-            if current_balance < int(amount):
+            if current_balance < Decimal(amount):
                 print(
                     f"Cannot withdraw {amount} due to current balance {current_balance}"
                 )
                 return False
             else:
                 # self.cursor = self.connection.cursor()
-                updated_balance = current_balance - int(amount)
+                updated_balance = current_balance - Decimal(amount)
                 self.cursor.execute(
                     "UPDATE customers SET balance=? WHERE username=?",
-                    (updated_balance, username),
+                    (str(updated_balance), username),
                 )
                 self.connection.commit()
                 print("withdraw -")
@@ -316,7 +316,7 @@ class BankApp:
     def transfer(self, sender, receiver, amount):
         try:
             current_sender_balance = self.get_balance(sender)
-            if current_sender_balance < int(amount):
+            if current_sender_balance < Decimal(amount):
                 print(
                     f"Cannot transfer {amount} due to insufficient balance {current_sender_balance}"
                 )
@@ -324,16 +324,16 @@ class BankApp:
             else:
                 print("transfer +")
                 # self.cursor = self.connection.cursor()
-                updated_sender_balance = current_sender_balance - int(amount)
+                updated_sender_balance = current_sender_balance - Decimal(amount)
                 self.cursor.execute(
                     "UPDATE customers SET balance=? WHERE username=?",
-                    (updated_sender_balance, sender),
+                    (str(updated_sender_balance), sender),
                 )
                 current_receiver_balance = self.get_balance(receiver)
-                updated_receiver_balance = current_receiver_balance + int(amount)
+                updated_receiver_balance = current_receiver_balance + Decimal(amount)
                 self.cursor.execute(
                     "UPDATE customers SET balance=? WHERE username=?",
-                    (updated_receiver_balance, receiver),
+                    (str(updated_receiver_balance), receiver),
                 )
                 self.connection.commit()
                 return True
@@ -368,6 +368,21 @@ class BankApp:
             print("update_customer_info -")
             # self.connection.close()
 
+    def save_transaction(self, sender_id, receiver_id, amount, trans_type):
+        try:
+            print("save_transaction +")
+            # self.cursor = self.connection.cursor()
+            self.cursor.execute(
+                """INSERT INTO transactions (sender_id, receiver_id, amount, type_id)
+                SELECT ?, ?, ?, id FROM transactions_types WHERE type=?""",
+                (sender_id, receiver_id, str(amount), trans_type),
+            )
+            self.connection.commit()
+        except sqlite3.Error as e:
+            print(f"A database error occurred: {e}")
+        finally:
+            print("save_transaction -")
+            # self.connection.close()
 
 def main():
     bank_app = BankApp("bankapp.db")
@@ -405,14 +420,17 @@ def main():
                         deposit_amount = get_valid_input(Decimal, "Deposit amount:", "Invalid deposit amount.")
                         bank_app.deposit(username, deposit_amount)
                         print(f"balance: {bank_app.get_balance(username)}")
+                        bank_app.save_transaction(username, None, deposit_amount, "deposit")
                     case 3:
                         withdraw_amount = get_valid_input(Decimal, "Withdrawal amount:", "Invalid withdrawal amount.")
                         bank_app.withdraw(username, withdraw_amount)
                         print(f"balance: {bank_app.get_balance(username)}")
+                        bank_app.save_transaction(username, None, withdraw_amount, "withdrawal")
                     case 4:
                         transfer_amount = get_valid_input(Decimal, "Transfer amount:", "Invalid transfer amount.")
                         receiver = get_valid_input(Username, "receiver's username:", "Invalid username.")
                         bank_app.transfer(username, receiver, transfer_amount)
+                        bank_app.save_transaction(username, receiver, transfer_amount, "transfer")
                     case 5:
                         new_username = get_valid_input(Username, "New username (leave blank to keep current):", "Invalid username.")
                         new_password = get_valid_input(Password, "New password (leave blank to keep current):", "Invalid password.")

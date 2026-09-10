@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+import logging
 import re
 from dataclasses import dataclass
 import sqlite3
 import hashlib
 from functools import singledispatch
 from decimal import Decimal
+from Logger import Logger
 
 def encrypt_password(plain_password):
     password_bytes = plain_password.encode("utf-8")
@@ -101,6 +103,10 @@ def get_valid_input(target_type: type, prompt: str, err_msg: str):
     except Exception as e:
         print(f"Error: {e}")
         return None
+
+# Initialize the logger
+logger = Logger(log_file="bankapp.log", name="BankApp", level=logging.INFO)
+
 class BankApp:
     def __init__(self, db_name):
         self.connection = sqlite3.connect(db_name)
@@ -112,7 +118,7 @@ class BankApp:
 
     def create_table(self):
         try:
-            print("Creating table if not exists")
+            logger.log(logging.INFO, "Creating table if not exists")
             # create cursor object to interact with db
             # self.cursor = self.connection.cursor()
 
@@ -158,13 +164,13 @@ class BankApp:
             """)
             self.connection.commit()
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("create table -")
+            logger.log(logging.INFO, "create table -")
 
     def create_account(self, username, password, balance=0):
         try:
-            print("create_account +")
+            logger.log(logging.INFO, "Creating account +")
 
             user_data = (username, encrypt_password(password), balance)
 
@@ -177,15 +183,15 @@ class BankApp:
             )
             self.connection.commit()
             if res is not None:
-                print(f"Account created for {username}")
+                logger.log(logging.INFO, f"Account created for {username}")
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("create_account -")
+            logger.log(logging.INFO, "create_account -")
 
     def check_existing_cust(self, username):
         try:
-            print("check_existing_cust +")
+            logger.log(logging.INFO, "Checking if customer exists +")
 
             res = self.cursor.execute(
                 "SELECT * FROM customers WHERE username=?", (username,)
@@ -193,14 +199,14 @@ class BankApp:
 
             return res is not None
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("check_existing_cust -")
+            logger.log(logging.INFO, "check_existing_cust -")
 
     def login(self, username, password):
         hashed_pw = encrypt_password(password)
         try:
-            print("Checking login credentials +")
+            logger.log(logging.INFO, "Checking login credentials +")
             res = self.cursor.execute(
                 "SELECT password FROM customers WHERE username=?", (username,)
             )
@@ -208,71 +214,69 @@ class BankApp:
             res = res.fetchone()
 
             if res is None:
-                print(
-                    f"User with username {username} does not exist. You need to register"
-                )
-                print("Checking login credentials -")
+                logger.log(logging.INFO, f"User with username {username} does not exist. You need to register")
+                logger.log(logging.INFO, "Checking login credentials -")
                 return False
             if res[0] == hashed_pw:
-                print("Login succeeded!")
-                print("login -")
+                logger.log(logging.INFO, "Login succeeded!")
+                logger.log(logging.INFO, "login -")
                 return True
             else:
-                print("Login failed: Incorrect password.")
-                print("login -")
+                logger.log(logging.INFO, "Login failed: Incorrect password.")
+                logger.log(logging.INFO, "login -")
                 return False
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("login -")
+            logger.log(logging.INFO, "login -")
 
     def check_balance(self, username):
         try:
-            print("check_balance +")
+            logger.log(logging.INFO, "check_balance +")
             # self.cursor = self.connection.cursor()
             res = self.cursor.execute(
                 "SELECT balance FROM customers WHERE username=?", (username,)
             )
-            print("check_balance -")
+            logger.log(logging.INFO, "check_balance -")
             return res.fetchone()[0]
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("check_balance -")
+            logger.log(logging.INFO, "check_balance -")
 
     def get_balance(self, username):
         try:
-            print("get_balance +")
+            logger.log(logging.INFO, "get_balance +")
             # self.cursor = self.connection.cursor()
             res = self.cursor.execute(
                 "SELECT balance FROM customers WHERE username=?", (username,)
             )
-            print("get_balance -")
+            logger.log(logging.INFO, "get_balance -")
             return Decimal(res.fetchone()[0])
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
             return 0
         finally:
-            print("get_balance -")
+            logger.log(logging.INFO, "get_balance -")
 
     def get_user_id(self, username):
         try:
-            print("get_user_id +")
+            logger.log(logging.INFO, "get_user_id +")
             # self.cursor = self.connection.cursor()
             res = self.cursor.execute(
                 "SELECT id FROM customers WHERE username=?", (username,)
             )
-            print("get_user_id -")
+            logger.log(logging.INFO, "get_user_id -")
             return res.fetchone()[0]
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
             return None
         finally:
-            print("get_user_id -")
+            logger.log(logging.INFO, "get_user_id -")
 
     def deposit(self, username, amount):
         try:
-            print("deposit +")
+            logger.log(logging.INFO, "deposit +")
             # self.cursor = self.connection.cursor()
             updated_balance = self.get_balance(username) + Decimal(amount)
             self.cursor.execute(
@@ -281,18 +285,16 @@ class BankApp:
             )
             self.connection.commit()
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("deposit -")
+            logger.log(logging.INFO, "deposit -")
 
     def withdraw(self, username, amount):
         try:
-            print("withdraw +")
+            logger.log(logging.INFO, "withdraw +")
             current_balance = self.get_balance(username)
             if current_balance < Decimal(amount):
-                print(
-                    f"Cannot withdraw {amount} due to current balance {current_balance}"
-                )
+                logger.log(logging.WARNING, f"Cannot withdraw {amount} due to current balance {current_balance}")
                 return False
             else:
                 # self.cursor = self.connection.cursor()
@@ -302,23 +304,21 @@ class BankApp:
                     (str(updated_balance), username),
                 )
                 self.connection.commit()
-                print("withdraw -")
+                logger.log(logging.INFO, "withdraw -")
                 return True
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("withdraw -")
+            logger.log(logging.INFO, "withdraw -")
 
     def transfer(self, sender, receiver, amount):
         try:
             current_sender_balance = self.get_balance(sender)
             if current_sender_balance < Decimal(amount):
-                print(
-                    f"Cannot transfer {amount} due to insufficient balance {current_sender_balance}"
-                )
+                logger.log(logging.WARNING, f"Cannot transfer {amount} due to insufficient balance {current_sender_balance}")
                 return False
             else:
-                print("transfer +")
+                logger.log(logging.INFO, "transfer +")
                 # self.cursor = self.connection.cursor()
                 updated_sender_balance = current_sender_balance - Decimal(amount)
                 self.cursor.execute(
@@ -334,13 +334,13 @@ class BankApp:
                 self.connection.commit()
                 return True
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("transfer -")
+            logger.log(logging.INFO, "transfer -")
 
     def update_customer_info(self, username, new_username=None, new_password=None):
         try:
-            print("update_customer_info +")
+            logger.log(logging.INFO, "update_customer_info +")
             # self.cursor = self.connection.cursor()
             cur_username = username
             if new_username:
@@ -358,13 +358,13 @@ class BankApp:
                 )
             self.connection.commit()
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("update_customer_info -")
+            logger.log(logging.INFO, "update_customer_info -")
 
     def save_transaction(self, sender_id, receiver_id, amount, trans_type):
         try:
-            print("save_transaction +")
+            logger.log(logging.INFO, "save_transaction +")
             # self.cursor = self.connection.cursor()
             self.cursor.execute(
                 """INSERT INTO transactions (sender_id, receiver_id, amount, type_id)
@@ -373,13 +373,13 @@ class BankApp:
             )
             self.connection.commit()
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("save_transaction -")
+            logger.log(logging.INFO, "save_transaction -")
 
     def get_transaction_history(self, user_id):
         try:
-            print("get_transaction_history +")
+            logger.log(logging.INFO, "get_transaction_history +")
             transactions = self.cursor.execute(
                 """SELECT t.id, c1.username AS sender, c2.username AS receiver, t.amount, tt.type, t.created_at
                 FROM transactions t
@@ -392,16 +392,16 @@ class BankApp:
             ).fetchall()
             return transactions
         except sqlite3.Error as e:
-            print(f"A database error occurred: {e}")
+            logger.log(logging.ERROR, f"A database error occurred: {e}")
         finally:
-            print("get_transaction_history -")
+            logger.log(logging.INFO, "get_transaction_history -")
             # self.connection.close()
 
     def display_transaction_history(self, user_id):
         transactions = self.get_transaction_history(user_id)
         print("Transaction history:")
         if not transactions:
-            print("No transactions found.")
+            logger.log(logging.INFO, "No transactions found.")
         else:
             print(f"{'ID':<5} {'Sender':<15} {'Receiver':<15} {'Amount':<10} {'Type':<12} {'Date'}")
             print("-" * 70)

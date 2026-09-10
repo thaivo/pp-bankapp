@@ -157,17 +157,14 @@ class BankApp:
                 )
             """)
             self.connection.commit()
-            # self.connection.close()
         except sqlite3.Error as e:
             print(f"A database error occurred: {e}")
         finally:
             print("create table -")
-            # self.connection.close()
 
     def create_account(self, username, password, balance=0):
         try:
             print("create_account +")
-            # self.cursor = self.connection.cursor()
 
             user_data = (username, encrypt_password(password), balance)
 
@@ -185,60 +182,49 @@ class BankApp:
             print(f"A database error occurred: {e}")
         finally:
             print("create_account -")
-            # self.connection.close()
 
     def check_existing_cust(self, username):
         try:
             print("check_existing_cust +")
-            # self.cursor = self.connection.cursor()
+
             res = self.cursor.execute(
                 "SELECT * FROM customers WHERE username=?", (username,)
             ).fetchone()
-            # self.connection.close()
-            print("check_existing_cust DEBUG - res: ", res)
+
             return res is not None
         except sqlite3.Error as e:
             print(f"A database error occurred: {e}")
         finally:
             print("check_existing_cust -")
-            # self.connection.close()
 
     def login(self, username, password):
         hashed_pw = encrypt_password(password)
         try:
-            print("Checking login credentials")
-            # self.cursor = self.connection.cursor()
-
-            # user_data = (username, hashed_pw)
-            print("Checking login credentials 1")
+            print("Checking login credentials +")
             res = self.cursor.execute(
                 "SELECT password FROM customers WHERE username=?", (username,)
             )
-            print("Checking login credentials 2")
+
             res = res.fetchone()
-            print(f"Checking login credentials 3 - res: {res}")
+
             if res is None:
                 print(
                     f"User with username {username} does not exist. You need to register"
                 )
                 print("Checking login credentials -")
-                # self.connection.close()
                 return False
             if res[0] == hashed_pw:
                 print("Login succeeded!")
                 print("login -")
-                # self.connection.close()
                 return True
             else:
                 print("Login failed: Incorrect password.")
                 print("login -")
-                # self.connection.close()
                 return False
         except sqlite3.Error as e:
             print(f"A database error occurred: {e}")
         finally:
             print("login -")
-            # self.connection.close()
 
     def check_balance(self, username):
         try:
@@ -253,7 +239,6 @@ class BankApp:
             print(f"A database error occurred: {e}")
         finally:
             print("check_balance -")
-            # self.connection.close()
 
     def get_balance(self, username):
         try:
@@ -269,7 +254,7 @@ class BankApp:
             return 0
         finally:
             print("get_balance -")
-            # self.connection.close()
+
     def get_user_id(self, username):
         try:
             print("get_user_id +")
@@ -284,7 +269,6 @@ class BankApp:
             return None
         finally:
             print("get_user_id -")
-            # self.connection.close()
 
     def deposit(self, username, amount):
         try:
@@ -300,7 +284,6 @@ class BankApp:
             print(f"A database error occurred: {e}")
         finally:
             print("deposit -")
-            # self.connection.close()
 
     def withdraw(self, username, amount):
         try:
@@ -320,13 +303,11 @@ class BankApp:
                 )
                 self.connection.commit()
                 print("withdraw -")
-                # self.connection.close()
                 return True
         except sqlite3.Error as e:
             print(f"A database error occurred: {e}")
         finally:
             print("withdraw -")
-            # self.connection.close()
 
     def transfer(self, sender, receiver, amount):
         try:
@@ -356,7 +337,6 @@ class BankApp:
             print(f"A database error occurred: {e}")
         finally:
             print("transfer -")
-            # self.connection.close()
 
     def update_customer_info(self, username, new_username=None, new_password=None):
         try:
@@ -381,7 +361,6 @@ class BankApp:
             print(f"A database error occurred: {e}")
         finally:
             print("update_customer_info -")
-            # self.connection.close()
 
     def save_transaction(self, sender_id, receiver_id, amount, trans_type):
         try:
@@ -397,7 +376,6 @@ class BankApp:
             print(f"A database error occurred: {e}")
         finally:
             print("save_transaction -")
-            # self.connection.close()
 
     def get_transaction_history(self, user_id):
         try:
@@ -418,6 +396,20 @@ class BankApp:
         finally:
             print("get_transaction_history -")
             # self.connection.close()
+
+    def display_transaction_history(self, user_id):
+        transactions = self.get_transaction_history(user_id)
+        print("Transaction history:")
+        if not transactions:
+            print("No transactions found.")
+        else:
+            print(f"{'ID':<5} {'Sender':<15} {'Receiver':<15} {'Amount':<10} {'Type':<12} {'Date'}")
+            print("-" * 70)
+            for transaction in transactions:
+                trans_id, sender, receiver, amount, trans_type, created_at = transaction
+                receiver_display = receiver if receiver else "N/A"
+                print(f"{trans_id:<5} {sender:<15} {receiver_display:<15} {amount:<10} {trans_type:<12} {created_at}")
+
 def main():
     bank_app = BankApp("bankapp.db")
     while True:
@@ -437,7 +429,8 @@ def main():
                 continue
             if bank_app.login(username, password) is False:
                 continue
-            
+
+            user_id = bank_app.get_user_id(username)
             while True:
                 print("Please select one of the below actions with respective number:")
                 print("Check balance: 1")
@@ -448,7 +441,6 @@ def main():
                 print("View transaction history: 6")
                 print("Exit: 7")
                 choice = get_valid_input(int, "Please input number:", "Invalid input. Please try again.")
-                user_id = bank_app.get_user_id(username)
                 match choice:
                     case 1:
                         print(f"balance: {bank_app.get_balance(username)}")
@@ -478,13 +470,7 @@ def main():
                         if new_username:
                             username = new_username
                     case 6:
-                        transactions =bank_app.get_transaction_history(user_id)
-                        if not transactions:
-                            print("No transactions found.")
-                        else:
-                            print("Transaction history:")
-                            for transaction in transactions:
-                                print(transaction)
+                        bank_app.display_transaction_history(user_id)
                     case 7:
                         break
                     case _:

@@ -270,6 +270,21 @@ class BankApp:
         finally:
             print("get_balance -")
             # self.connection.close()
+    def get_user_id(self, username):
+        try:
+            print("get_user_id +")
+            # self.cursor = self.connection.cursor()
+            res = self.cursor.execute(
+                "SELECT id FROM customers WHERE username=?", (username,)
+            )
+            print("get_user_id -")
+            return res.fetchone()[0]
+        except sqlite3.Error as e:
+            print(f"A database error occurred: {e}")
+            return None
+        finally:
+            print("get_user_id -")
+            # self.connection.close()
 
     def deposit(self, username, amount):
         try:
@@ -384,6 +399,25 @@ class BankApp:
             print("save_transaction -")
             # self.connection.close()
 
+    def get_transaction_history(self, user_id):
+        try:
+            print("get_transaction_history +")
+            transactions = self.cursor.execute(
+                """SELECT t.id, c1.username AS sender, c2.username AS receiver, t.amount, tt.type, t.created_at
+                FROM transactions t
+                JOIN customers c1 ON t.sender_id = c1.id
+                LEFT JOIN customers c2 ON t.receiver_id = c2.id
+                JOIN transactions_types tt ON t.type_id = tt.id
+                WHERE t.sender_id=? OR t.receiver_id=?
+                ORDER BY t.created_at DESC""",
+                (user_id, user_id)
+            ).fetchall()
+            return transactions
+        except sqlite3.Error as e:
+            print(f"A database error occurred: {e}")
+        finally:
+            print("get_transaction_history -")
+            # self.connection.close()
 def main():
     bank_app = BankApp("bankapp.db")
     while True:
@@ -411,8 +445,10 @@ def main():
                 print("Withdraw: 3")
                 print("Transfer: 4")
                 print("Update your info: 5")
-                print("Exit: 6")
+                print("View transaction history: 6")
+                print("Exit: 7")
                 choice = get_valid_input(int, "Please input number:", "Invalid input. Please try again.")
+                user_id = bank_app.get_user_id(username)
                 match choice:
                     case 1:
                         print(f"balance: {bank_app.get_balance(username)}")
@@ -420,17 +456,17 @@ def main():
                         deposit_amount = get_valid_input(Decimal, "Deposit amount:", "Invalid deposit amount.")
                         bank_app.deposit(username, deposit_amount)
                         print(f"balance: {bank_app.get_balance(username)}")
-                        bank_app.save_transaction(username, None, deposit_amount, "deposit")
+                        bank_app.save_transaction(user_id, None, deposit_amount, "deposit")
                     case 3:
                         withdraw_amount = get_valid_input(Decimal, "Withdrawal amount:", "Invalid withdrawal amount.")
                         bank_app.withdraw(username, withdraw_amount)
                         print(f"balance: {bank_app.get_balance(username)}")
-                        bank_app.save_transaction(username, None, withdraw_amount, "withdrawal")
+                        bank_app.save_transaction(user_id, None, withdraw_amount, "withdrawal")
                     case 4:
                         transfer_amount = get_valid_input(Decimal, "Transfer amount:", "Invalid transfer amount.")
                         receiver = get_valid_input(Username, "receiver's username:", "Invalid username.")
                         bank_app.transfer(username, receiver, transfer_amount)
-                        bank_app.save_transaction(username, receiver, transfer_amount, "transfer")
+                        bank_app.save_transaction(user_id, bank_app.get_user_id(receiver), transfer_amount, "transfer")
                     case 5:
                         new_username = get_valid_input(Username, "New username (leave blank to keep current):", "Invalid username.")
                         new_password = get_valid_input(Password, "New password (leave blank to keep current):", "Invalid password.")
@@ -442,6 +478,14 @@ def main():
                         if new_username:
                             username = new_username
                     case 6:
+                        transactions =bank_app.get_transaction_history(user_id)
+                        if not transactions:
+                            print("No transactions found.")
+                        else:
+                            print("Transaction history:")
+                            for transaction in transactions:
+                                print(transaction)
+                    case 7:
                         break
                     case _:
                         print(
